@@ -1,0 +1,39 @@
+//@version=5
+indicator(title="RSI, Stochastic, and MACD", overlay=false)
+
+// RSI Length
+rsiLength = input(14, title="RSI Length")
+
+// Stochastic Length
+stoLength = input(14, title="Stochastic Length")
+stoKSmooth = input(3, title="K Smoothing")
+stoDSmooth = input(3, title="D Smoothing")
+
+// MACD Parameters
+macdFastLength = input(12, title="Fast Length")
+macdSlowLength = input(26, title="Slow Length")
+macdSignalLength = input(9, title="Signal Length")
+
+// Calculate RSI
+rsi = ta.rsi(close,rsiLength)
+
+// Calculate %K and %D for Stochastic
+stoK = ta.sma(ta.stoch(close, high, low, stoLength), stoKSmooth)
+stoD = ta.sma(stoK, stoDSmooth)
+
+// Calculate MACD Line
+macdLine = ta.ema(close, macdFastLength) - ta.ema(close, macdSlowLength)
+
+// Calculate Signal Line
+signalLine = ta.ema(macdLine, macdSignalLength)
+
+// Calculate Histogram
+histogram = macdLine - signalLine
+
+// Plot RSI, %K, %D, MACD Line, Signal Line, and Histogram
+plot(rsi, title="RSI", color=color.blue)
+plot(stoK, title="%K", color=color.red)
+plot(stoD, title="%D", color=color.green)
+plot(macdLine, title="MACD Line", color=color.blue)
+plot(signalLine, title="Signal Line", color=color.red)
+plot(histogram, title="MACD Histogram", color=color.purple,style = plot.style_histogram)
