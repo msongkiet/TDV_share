@@ -16,17 +16,35 @@ macdSignalLength = input(9, title="Signal Length")
 
 // Calculate RSI
 rsi = ta.rsi(close,rsiLength)
+hline(100,linestyle = hline.style_solid)
+hline(70)
+hline(50)
+hline(30)
 
 // Calculate %K and %D for Stochastic
-stoK = ta.sma(ta.stoch(close, high, low, stoLength), stoKSmooth)
+// shift stoK by 100
+stoK = ta.sma(ta.stoch(close, high, low, stoLength), stoKSmooth) + 100
 stoD = ta.sma(stoK, stoDSmooth)
+hline(200,linestyle = hline.style_solid)
+hline(180)
+hline(150)
+hline(120)
+
 
 // Calculate MACD Line
 macdLine = ta.ema(close, macdFastLength) - ta.ema(close, macdSlowLength)
+min_macdLine = ta.min(macdLine)
+max_macdLine = ta.max(macdLine)
+_macdLine = 0.0
+if math.abs(min_macdLine) > math.abs(max_macdLine)
+    _macdLine := macdLine/math.abs(min_macdLine)*100
+else
+    _macdLine := macdLine/math.abs(max_macdLine)*100
 
+_macdLine += 250
+hline(250,"macd zero line",linestyle = hline.style_solid)
 // Calculate Signal Line
-signalLine = ta.ema(macdLine, macdSignalLength)
-
+signalLine = ta.ema(_macdLine, macdSignalLength)
 // Calculate Histogram
 histogram = macdLine - signalLine
 
@@ -34,6 +52,6 @@ histogram = macdLine - signalLine
 plot(rsi, title="RSI", color=color.blue)
 plot(stoK, title="%K", color=color.red)
 plot(stoD, title="%D", color=color.green)
-plot(macdLine, title="MACD Line", color=color.blue)
+plot(_macdLine, title="MACD Line", color=color.blue)
 plot(signalLine, title="Signal Line", color=color.red)
-plot(histogram, title="MACD Histogram", color=color.purple,style = plot.style_histogram)
+// plot(histogram, title="MACD Histogram", color=color.purple,style = plot.style_histogram)
