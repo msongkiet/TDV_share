@@ -1,0 +1,38 @@
+//@version=5
+indicator("Zig Zag + EMA", overlay = true, max_lines_count = 500, max_labels_count = 500)
+
+import TradingView/ZigZag/6 as ZigZagLib 
+
+// Create Zig Zag instance from user settings.
+var zigZag = ZigZagLib.newInstance(
+  ZigZagLib.Settings.new(
+      input.float(5.0, "Price deviation for reversals (%)", 0.00001, 100.0, 0.5, "0.00001 - 100", group = "Zig Zag"),
+      input.int(10, "Pivot legs", 2, group = "Zig Zag"),
+      input(#2962FF, "Line color", group = "Zig Zag"),
+      input(true, "Extend to last bar", group = "Zig Zag"),
+      input(true, "Display reversal price", group = "Zig Zag"),
+      input(true, "Display cumulative volume", group = "Zig Zag"),
+      input(true, "Display reversal price change", inline = "priceRev", group = "Zig Zag"),
+      input.string("Absolute", "", ["Absolute", "Percent"], inline = "priceRev", group = "Zig Zag"),
+      true)
+ )
+
+// Update 'zigZag' object on each bar with new ​pivots, ​volume, lines, labels.
+zigZag.update()
+
+src = input(close, title="Source", group = "EMA")
+len1 = input.int(10, minval=1, title="Length I", group = "EMA")
+len2 = input.int(21, minval=1, title="Length II", group = "EMA")
+len3 = input.int(50, minval=1, title="Length III", group = "EMA")
+len4 = input.int(100, minval=1, title="Length IV", group = "EMA")
+len5 = input.int(200, minval=1, title="Length V", group = "EMA")
+out1 = ta.ema(src, len1)
+out2 = ta.ema(src, len2)
+out3 = ta.ema(src, len3)
+out4 = ta.ema(src, len4)
+out5 = ta.ema(src, len5)
+plot(out1, title="EMA I", color=color.blue)
+plot(out2, title="EMA II", color=color.aqua)
+plot(out3, title="EMA III", color=color.purple)
+plot(out4, title="EMA IV", color=color.red)
+plot(out5, title="EMA V", color=color.maroon)
