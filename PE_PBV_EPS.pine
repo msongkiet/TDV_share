@@ -1,0 +1,22 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SM19
+
+//@version=5
+indicator("P/E, P/BV, EPS",shorttitle = "Fin Ratio",overlay = false)
+// period (simple string) Reporting period. Possible values are "TTM", "FY", "FQ", "FH".
+// request.financial(symbol, financial_id, period, gaps, ignore_invalid_symbol, currency) 
+epsPeriod = input.string(defval = "TTM", title = "PE period", options = ["FQ", "FY", "TTM"], group = "P/E")
+epsType = input.string(defval = "EARNINGS_PER_SHARE_DILUTED", title = "Earning Type", options = ["EARNINGS_PER_SHARE_DILUTED", "EARNINGS_PER_SHARE_BASIC"], group = "P/E")
+EPS = request.financial(syminfo.tickerid, epsType, epsPeriod)
+PriceEarningsRatio = close / EPS
+plot(PriceEarningsRatio, title = "P/E", color = color.lime, linewidth = 2, style = plot.style_linebr)
+
+epsPeriod2 = input.string(defval = "FQ", title = "PE period", options = ["FQ", "FY", "TTM"], group = "EPS")
+epsType2 = input.string(defval = "EARNINGS_PER_SHARE_BASIC", title = "Earning Type", options = ["EARNINGS_PER_SHARE_DILUTED", "EARNINGS_PER_SHARE_BASIC"], group = "EPS")
+EPS2 = request.financial(syminfo.tickerid, epsType2, epsPeriod2)
+plot(EPS2,title = "EPS", color = color.aqua, linewidth = 2, style = plot.style_stepline_diamond)
+
+bpsPeriod = input.string(defval = "FQ", title = "BVPS Reporting period", options = ["FQ", "FY"])
+BVPS = request.financial(syminfo.tickerid, "BOOK_VALUE_PER_SHARE", "FQ")
+PriceBookRatio = close / BVPS
+plot(PriceBookRatio, title = "P/BV", color = color.orange, linewidth = 2, style = plot.style_linebr)
