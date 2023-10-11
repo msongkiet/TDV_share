@@ -1,0 +1,341 @@
+//@version=5
+//author: mladen
+//rebound arrows and TMA angle caution2: Ale
+//rewritten from MQL5 to Pine: Brylator
+indicator("2XTMA Centered Bands Indicator", "2XTMA v0.42", overlay = true, max_lines_count = 500, max_labels_count = 500)
+
+//INPUTS
+var GRP1 = "Parameters"
+HalfLength = input.int(12, "Centered TMA half period", group = GRP1)
+string PriceType = input.string("Weighted", "Price to use", options = ["Close", "Open", "High", "Low", "Median", "Typical", "Weighted", "Average"], group = GRP1)
+AtrPeriod = input.int(100, "Average true range period", group = GRP1)
+AtrMultiplier = input.float(2, "Average true range multiplier", group = GRP1)
+TMAangle = input.int(4, "Centered TMA angle caution", group = GRP1)
+
+//VARIABLES
+float tmac = na
+float tmau = na
+float tmad = na
+
+var float pastTmac = na //from the previous candle
+var float pastTmau = na
+var float pastTmad = na
+
+float tmau_temp = na //before looping
+float tmac_temp = na
+float tmad_temp = na
+
+float point = syminfo.pointvalue //NEEDS MORE TESTS
+
+bool last = false //checks if a loop is needed
+
+var string alertSignal = "EMPTY" //needed for alarms to avoid repetition
+
+//COLORS
+var GRP2 = "Colors"
+var color colorBuffer = na
+color colorDOWN = input.color(color.new(color.red, 0), "Bear", inline = "5", group = GRP2)
+color colorUP = input.color(color.new(color.green, 0), "Bull", inline = "5", group = GRP2)
+color colorBands = input.color(color.new(#b2b5be, 0), "Bands", inline = "5", group = GRP2)
+bool cautionInput = input.bool(true, "Caution label", inline = "6", group = GRP2)
+
+//ALERTS
+var GRP3 = "Alerts (Needs to create alert manually after every change)"
+bool crossUpInput = input.bool(false, "Crossing up", inline = "7", group = GRP3)
+bool crossDownInput = input.bool(false, "Crossing down", inline = "7", group = GRP3)
+bool comingBackInput = input.bool(false, "Coming back", inline = "7", group = GRP3)
+bool onArrowDownInput = input.bool(false, "On arrow down", inline = "8", group = GRP3)
+bool onArrowUpInput = input.bool(false, "On arrow up", inline = "8", group = GRP3)
+
+//CLEAR LINES
+a_allLines = line.all
+if array.size(a_allLines) > 0
+    for p = 0 to array.size(a_allLines) - 1
+        line.delete(array.get(a_allLines, p))
+        
+//GET PRICE        
+Price(x) =>
+    float price = switch PriceType
+        "Close" => close[x]
+        "Open" => open[x]
+        "High" => high[x]
+        "Low" => low[x]
+        "Median" => (high[x] + low[x]) / 2
+        "Typical" => (high[x] + low[x] + close[x]) / 3
+        "Weighted" => (high[x] + low[x] + close[x] + close[x]) / 4
+        "Average" => (high[x] + low[x] + close[x] + open[x])/ 4
+    price
+
+//MAIN
+for i = HalfLength to 0
+
+    //ATR
+    atr = 0.0
+    for j = 0 to  AtrPeriod - 1
+        atr += math.max(high[i + j + 10], close[i + j + 11]) - math.min(low[i + j + 10], close[i + j + 11])
+    atr /= AtrPeriod
+    
+    //BANDS
+    sum = (HalfLength + 1) * Price(i)
+    sumw = (HalfLength + 1)
+    k = HalfLength
+    for j = 1 to HalfLength
+        sum += k * Price(i + j)
+        sumw += k
+        if (j <= i)
+            sum  += k * Price(i - j)
+            sumw += k
+        k -= 1
+    tmac := sum/sumw
+    tmau := tmac+AtrMultiplier*atr
+    tmad := tmac-AtrMultiplier*atr
+    
+    //ALERTS
+    if i == 0 //Only on a real candle 
+        if (high > tmau and alertSignal != "UP") //crossing up band
+            if crossUpInput == true //checks if activated
+                alert("Crossing up Band") //calling alert
+            alertSignal := "UP" //to avoid repeating 
+        else if (low < tmad and alertSignal != "DOWN") //crossing down band
+            if crossDownInput == true
+                alert("Crossing down Band")
+            alertSignal := "DOWN"
+        else if (alertSignal == "DOWN" and high >= tmad and alertSignal != "EMPTY") //back from the down band
+            if comingBackInput == true
+                alert("Coming back")
+            alertSignal := "EMPTY"
+        else if (alertSignal == "UP" and low <= tmau and alertSignal != "EMPTY") //back from the up band
+            if comingBackInput == true
+                alert("Coming back")
+            alertSignal := "EMPTY"
+            
+    //CHANGE TREND COLOR
+    if pastTmac != 0.0
+        if tmac > pastTmac
+            colorBuffer := colorUP
+        if tmac < pastTmac
+            colorBuffer := colorDOWN
+            
+    //SIGNALS
+    reboundD = 0.0
+    reboundU = 0.0
+    caution = 0.0
+    if pastTmac != 0.0
+        if (high[i + 1] > pastTmau and close[i + 1] > open[i + 1] and close[i] < open[i])
+            reboundD := high[i] + AtrMultiplier * atr / 2
+            if (tmac - pastTmac > TMAangle * point)
+                caution := reboundD + 10 * point
+        if (low[i + 1] < pastTmad and close[i + 1] < open[i + 1] and close[i] > open[i])
+            reboundU := low[i] - AtrMultiplier * atr / 2
+            if (pastTmac - tmac > TMAangle * point)
+                caution := reboundU - 10 * point
+    
+    //LAST REAL
+    if barstate.islast and i == HalfLength
+        last := true
+        tmau_temp := tmau
+        tmac_temp := tmac
+        tmad_temp := tmad
+        
+    //DRAW HANDICAPPED BANDS
+    if barstate.islast and i < HalfLength
+        line.new(bar_index - (i + 1), pastTmau, bar_index - (i), tmau, width = 2, style = line.style_dotted, color = colorBands)
+        line.new(bar_index - (i + 1), pastTmac, bar_index - (i), tmac, width = 2, style = line.style_dotted, color = colorBuffer)
+        line.new(bar_index - (i + 1), pastTmad, bar_index - (i), tmad, width = 2, style = line.style_dotted, color = colorBands)
+        
+    //DRAW SIGNALS
+    if reboundD != 0
+        //label.new(bar_index - (i), reboundD, color = colorDOWN, style = label.style_triangledown, size = size.tiny, textcolor = na)
+        label.new(bar_index - (i), reboundD, '▼', color = na, textcolor = colorDOWN, textalign=  text.align_center)
+        if i == 0 and onArrowDownInput == true //alert
+            alert("Down arrow") 
+        if caution != 0 and cautionInput == true
+            label.new(bar_index - (i), reboundD, color = colorUP, style = label.style_xcross, size = size.tiny, textcolor = na)
+    if reboundU != 0
+        //label.new(bar_index - (i), reboundU, color = colorUP, style = label.style_triangleup, size = size.tiny, textcolor = na)
+        label.new(bar_index - (i), reboundU, '▲', color = na, textcolor = colorUP, textalign = text.align_center)
+        if i == 0 and onArrowUpInput == true //alert
+            alert("UP arrow") 
+        if caution != 0 and cautionInput == true
+            label.new(bar_index - (i), reboundU, color = colorDOWN, style = label.style_xcross, size = size.tiny, textcolor = na)
+            
+    //SAVE HISTORY
+    pastTmac := tmac
+    pastTmau := tmau
+    pastTmad := tmad
+    
+    //LOOP IS ONLY FOR HANDICAPPED
+    if barstate.islast != true
+        break
+        
+//DRAW REAL BANDS
+plot(last ? tmau_temp : tmau, title = "TMA Up", color = colorBands, linewidth=1, style = plot.style_line, offset = -HalfLength)
+plot(last ? tmac_temp : tmac, title = "TMA Mid", color = colorBuffer, linewidth=1, style = plot.style_line, offset = -HalfLength)
+plot(last ? tmad_temp : tmad, title = "TMA Down", color = colorBands, linewidth=1, style = plot.style_line, offset = -HalfLength)
+
+//INPUTS
+var GRP1_2 = "Parameters 2"
+HalfLength2 = input.int(24, "Centered TMA half period", group = GRP1_2)
+string PriceType2 = input.string("Weighted", "Price2 to use", options = ["Close", "Open", "High", "Low", "Median", "Typical", "Weighted", "Average"], group = GRP1_2)
+AtrPeriod2 = input.int(200, "Average true range period", group = GRP1_2)
+AtrMultiplier2 = input.float(4, "Average true range multiplier", group = GRP1_2)
+TMAangle2 = input.int(8, "Centered TMA angle caution2", group = GRP1_2)
+
+//VARIABLES
+float tmac2 = na
+float tmau2 = na
+float tmad2 = na
+
+var float pastTmac2 = na //from the previous candle
+var float pastTmau2 = na
+var float pastTmad2 = na
+
+float tmau_temp2 = na //before looping
+float tmac_temp2 = na
+float tmad_temp2 = na
+
+bool last2 = false //checks if a loop is needed
+
+var string alertSignal2 = "EMPTY" //needed for alarms to avoid repetition
+
+//COLORS
+var GRP2_2 = "Colors"
+var color colorBuffer2 = na
+color colorDOWN2 = input.color(color.new(color.red, 0), "Bear", inline = "5", group = GRP2_2)
+color colorUP2 = input.color(color.new(color.green, 0), "Bull", inline = "5", group = GRP2_2)
+color colorBands2 = input.color(color.new(#b2b5be, 0), "Bands", inline = "5", group = GRP2_2)
+bool cautionInput2 = input.bool(true, "Caution label", inline = "6", group = GRP2_2)
+
+//ALERTS
+var GRP3_2 = "Alerts (Needs to create alert manually after every change)"
+bool crossUpInput2 = input.bool(false, "Crossing up", inline = "7", group = GRP3_2)
+bool crossDownInput2 = input.bool(false, "Crossing down", inline = "7", group = GRP3_2)
+bool comingBackInput2 = input.bool(false, "Coming back", inline = "7", group = GRP3_2)
+bool onArrowDownInput2 = input.bool(false, "On arrow down", inline = "8", group = GRP3_2)
+bool onArrowUpInput2 = input.bool(false, "On arrow up", inline = "8", group = GRP3_2)
+
+//CLEAR LINES
+a_allLines2 = line.all
+if array.size(a_allLines2) > 0
+    for p = 0 to array.size(a_allLines2) - 1
+        line.delete(array.get(a_allLines2, p))
+        
+//GET PRICE        
+Price2(x) =>
+    float price = switch PriceType2
+        "Close" => close[x]
+        "Open" => open[x]
+        "High" => high[x]
+        "Low" => low[x]
+        "Median" => (high[x] + low[x]) / 2
+        "Typical" => (high[x] + low[x] + close[x]) / 3
+        "Weighted" => (high[x] + low[x] + close[x] + close[x]) / 4
+        "Average" => (high[x] + low[x] + close[x] + open[x])/ 4
+    price
+
+//MAIN
+for i = HalfLength2 to 0
+
+    //ATR
+    atr2 = 0.0
+    for j = 0 to  AtrPeriod2 - 1
+        atr2 += math.max(high[i + j + 10], close[i + j + 11]) - math.min(low[i + j + 10], close[i + j + 11])
+    atr2 /= AtrPeriod2
+    
+    //BANDS
+    sum2 = (HalfLength2 + 1) * Price2(i)
+    sumw2 = (HalfLength2 + 1)
+    k2 = HalfLength2
+    for j = 1 to HalfLength2
+        sum2 += k2 * Price2(i + j)
+        sumw2 += k2
+        if (j <= i)
+            sum2  += k2 * Price2(i - j)
+            sumw2 += k2
+        k2 -= 1
+    tmac2 := sum2/sumw2
+    tmau2 := tmac2+AtrMultiplier2*atr2
+    tmad2 := tmac2-AtrMultiplier2*atr2
+    
+    //ALERTS
+    if i == 0 //Only on a real candle 
+        if (high > tmau2 and alertSignal2 != "UP") //crossing up band
+            if crossUpInput2 == true //checks if activated
+                alert("Crossing up Band") //calling alert
+            alertSignal2 := "UP" //to avoid repeating 
+        else if (low < tmad2 and alertSignal2 != "DOWN") //crossing down band
+            if crossDownInput2 == true
+                alert("Crossing down Band")
+            alertSignal2 := "DOWN"
+        else if (alertSignal2 == "DOWN" and high >= tmad2 and alertSignal2 != "EMPTY") //back from the down band
+            if comingBackInput2 == true
+                alert("Coming back")
+            alertSignal2 := "EMPTY"
+        else if (alertSignal2 == "UP" and low <= tmau2 and alertSignal2 != "EMPTY") //back from the up band
+            if comingBackInput2 == true
+                alert("Coming back")
+            alertSignal2 := "EMPTY"
+            
+    //CHANGE TREND COLOR
+    if pastTmac2 != 0.0
+        if tmac2 > pastTmac2
+            colorBuffer2 := colorUP2
+        if tmac2 < pastTmac2
+            colorBuffer2 := colorDOWN2
+            
+    //SIGNALS
+    reboundD2 = 0.0
+    reboundU2 = 0.0
+    caution2 = 0.0
+    if pastTmac2 != 0.0
+        if (high[i + 1] > pastTmau2 and close[i + 1] > open[i + 1] and close[i] < open[i])
+            reboundD2 := high[i] + AtrMultiplier2 * atr2 / 2
+            if (tmac2 - pastTmac2 > TMAangle2 * point)
+                caution2 := reboundD2 + 10 * point
+        if (low[i + 1] < pastTmad2 and close[i + 1] < open[i + 1] and close[i] > open[i])
+            reboundU2 := low[i] - AtrMultiplier2 * atr2 / 2
+            if (pastTmac2 - tmac2 > TMAangle2 * point)
+                caution2 := reboundU2 - 10 * point
+    
+    //LAST REAL
+    if barstate.islast and i == HalfLength2
+        last2 := true
+        tmau_temp2 := tmau2
+        tmac_temp2 := tmac2
+        tmad_temp2 := tmad2
+        
+    //DRAW HANDICAPPED BANDS
+    if barstate.islast and i < HalfLength2
+        line.new(bar_index - (i + 1), pastTmau2, bar_index - (i), tmau2, width = 2, style = line.style_dotted, color = colorBands2)
+        line.new(bar_index - (i + 1), pastTmac2, bar_index - (i), tmac2, width = 2, style = line.style_dotted, color = colorBuffer2)
+        line.new(bar_index - (i + 1), pastTmad2, bar_index - (i), tmad2, width = 2, style = line.style_dotted, color = colorBands2)
+        
+    //DRAW SIGNALS
+    if reboundD2 != 0
+        //label.new(bar_index - (i), reboundD2, color = colorDOWN2, style = label.style_triangledown, size = size.tiny, textcolor = na)
+        label.new(bar_index - (i), reboundD2, '▼', color = na, textcolor = colorDOWN2, textalign=  text.align_center)
+        if i == 0 and onArrowDownInput2 == true //alert
+            alert("Down arrow") 
+        if caution2 != 0 and cautionInput2 == true
+            label.new(bar_index - (i), reboundD2, color = colorUP2, style = label.style_xcross, size = size.tiny, textcolor = na)
+    if reboundU2 != 0
+        //label.new(bar_index - (i), reboundU2, color = colorUP2, style = label.style_triangleup, size = size.tiny, textcolor = na)
+        label.new(bar_index - (i), reboundU2, '▲', color = na, textcolor = colorUP2, textalign = text.align_center)
+        if i == 0 and onArrowUpInput2 == true //alert
+            alert("UP arrow") 
+        if caution2 != 0 and cautionInput2 == true
+            label.new(bar_index - (i), reboundU2, color = colorDOWN2, style = label.style_xcross, size = size.tiny, textcolor = na)
+            
+    //SAVE HISTORY
+    pastTmac2 := tmac2
+    pastTmau2 := tmau2
+    pastTmad2 := tmad2
+    
+    //LOOP IS ONLY FOR HANDICAPPED
+    if barstate.islast != true
+        break
+        
+//DRAW REAL BANDS
+plot(last2 ? tmau_temp2 : tmau2, title = "TMA Up", color = colorBands2, linewidth=1, style = plot.style_line, offset = -HalfLength2)
+plot(last2 ? tmac_temp2 : tmac2, title = "TMA Mid", color = colorBuffer2, linewidth=1, style = plot.style_line, offset = -HalfLength2)
+plot(last2 ? tmad_temp2 : tmad2, title = "TMA Down", color = colorBands2, linewidth=1, style = plot.style_line, offset = -HalfLength2)
