@@ -1,0 +1,26 @@
+//@version=5
+indicator(title="Parabolic SAR + EMA", shorttitle="SAR+EMA", overlay=true, timeframe="", timeframe_gaps=true)
+start = input(0.02, group = "SAR I")
+increment = input(0.02, group = "SAR I")
+maximum = input(0.2, "Max Value", group = "SAR I")
+
+startII = input(0.04, group = "SAR II")
+incrementII = input(0.04, group = "SAR II")
+maximumII = input(0.4, "Max Value", group = "SAR II")
+
+out = ta.sar(start, increment, maximum)
+outII = ta.sar(startII, incrementII, maximumII)
+
+plot(out, "ParabolicSAR", style=plot.style_cross, color=#2962FF)
+plot(outII, "ParabolicSAR", style=plot.style_cross, color=#42ff29)
+
+src = input(close, title="Source", group = "EMA")
+len1 = input.int(10, minval=1, title="Length I", group = "EMA")
+len2 = input.int(21, minval=1, title="Length II", group = "EMA")
+len3 = input.int(50, minval=1, title="Length III", group = "EMA")
+out1 = ta.ema(src, len1)
+out2 = ta.ema(src, len2)
+out3 = ta.ema(src, len3)
+plot(out1, title="EMA I", color=color.blue)
+plot(out2, title="EMA II", color=color.aqua)
+plot(out3, title="EMA III", color=color.purple)
