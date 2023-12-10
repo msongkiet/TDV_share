@@ -1,0 +1,109 @@
+// © Dreadblitz
+//@version=4
+study(shorttitle="FLI X HULL", title="Follow Line Indicator X HULL", overlay=true)
+// 
+BBperiod      = input(defval = 21,     title = "BB Period",    type = input.integer, minval = 1)
+BBdeviations  = input(defval = 1.00,     title = "BB Deviations",    type = input.float, minval = 0.1, step=0.05)
+UseATRfilter  = input(defval = true, title = "ATR Filter",  type = input.bool)
+ATRperiod     = input(defval = 5,     title = "ATR Period",    type = input.integer, minval = 1)
+hl            = input(defval = false, title = "Hide Labels",  type = input.bool)
+//
+BBUpper=sma (close,BBperiod)+stdev(close, BBperiod)*BBdeviations
+BBLower=sma (close,BBperiod)-stdev(close, BBperiod)*BBdeviations
+//
+TrendLine = 0.0
+iTrend = 0.0
+buy = 0.0
+sell = 0.0
+//
+BBSignal = close>BBUpper? 1 : close<BBLower? -1 : 0
+// 
+if BBSignal == 1 and UseATRfilter == 1
+    TrendLine:=low-atr(ATRperiod)
+    if TrendLine<TrendLine[1] 
+        TrendLine:=TrendLine[1]
+if BBSignal == -1 and UseATRfilter == 1
+    TrendLine:=high+atr(ATRperiod)
+    if TrendLine>TrendLine[1]
+        TrendLine:=TrendLine[1]
+if BBSignal == 0 and UseATRfilter == 1
+    TrendLine:=TrendLine[1]
+//
+if BBSignal == 1 and UseATRfilter == 0
+    TrendLine:=low
+    if TrendLine<TrendLine[1] 
+        TrendLine:=TrendLine[1]
+if BBSignal == -1 and UseATRfilter == 0
+    TrendLine:=high
+    if TrendLine>TrendLine[1]
+        TrendLine:=TrendLine[1]
+if BBSignal == 0 and UseATRfilter == 0
+    TrendLine:=TrendLine[1]
+//
+iTrend:=iTrend[1]
+if TrendLine>TrendLine[1] 
+    iTrend:=1
+if TrendLine<TrendLine[1] 
+    iTrend:=-1
+//
+buy:=iTrend[1]==-1 and iTrend==1 ? 1 : na
+sell:=iTrend[1]==1 and iTrend==-1? 1 : na
+//
+plot(TrendLine, color=iTrend > 0?color.blue:color.red ,style=plot.style_line,linewidth=2,transp=0,title="Trend Line") 
+plotshape(buy == 1 and hl == false? TrendLine-atr(8) :na, text='💣', style= shape.labelup, location=location.absolute, color=color.blue, textcolor=color.white, offset=0, transp=0,size=size.auto)
+plotshape(sell == 1 and hl == false ?TrendLine+atr(8):na, text='🔨', style=shape.labeldown, location=location.absolute, color=color.red, textcolor=color.white, offset=0, transp=0,size=size.auto)
+//
+alertcondition(sell == 1 ,title="Sell",message="Sell")
+alertcondition(buy == 1 ,title="Buy",message="Buy")
+alertcondition(buy == 1 or sell == 1 ,title="Buy/Sell",message="Buy/Sell")
+
+
+
+//INPUT
+src = input(close, title="Source")
+modeSwitch = input("Hma", title="Hull Variation", options=["Hma", "Thma", "Ehma"])
+length = input(55, title="Length(180-200 for floating S/R , 55 for swing entry)")
+lengthMult = input(1.0, title="Length multiplier (Used to view higher timeframes with straight band)")
+
+useHtf = input(false, title="Show Hull MA from X timeframe? (good for scalping)")
+htf = input("240", title="Higher timeframe", type=input.resolution)
+
+switchColor = input(true, "Color Hull according to trend?")
+candleCol = input(false,title="Color candles based on Hull's Trend?")
+visualSwitch  = input(true, title="Show as a Band?")
+thicknesSwitch = input(1, title="Line Thickness")
+transpSwitch = input(40, title="Band Transparency",step=5)
+
+//FUNCTIONS
+//HMA
+HMA(_src, _length) =>  wma(2 * wma(_src, _length / 2) - wma(_src, _length), round(sqrt(_length)))
+//EHMA    
+EHMA(_src, _length) =>  ema(2 * ema(_src, _length / 2) - ema(_src, _length), round(sqrt(_length)))
+//THMA    
+THMA(_src, _length) =>  wma(wma(_src,_length / 3) * 3 - wma(_src, _length / 2) - wma(_src, _length), _length)
+    
+//SWITCH
+Mode(modeSwitch, src, len) =>
+      modeSwitch == "Hma"  ? HMA(src, len) :
+      modeSwitch == "Ehma" ? EHMA(src, len) : 
+      modeSwitch == "Thma" ? THMA(src, len/2) : na
+
+//OUT
+_hull = Mode(modeSwitch, src, int(length * lengthMult))
+HULL = useHtf ? security(syminfo.ticker, htf, _hull) : _hull
+MHULL = HULL[0]
+SHULL = HULL[2]
+
+//COLOR
+hullColor = switchColor ? (HULL > HULL[2] ? #00ff00 : #ff0000) : #ff9800
+
+//PLOT
+///< Frame
+Fi1 = plot(MHULL, title="MHULL", color=hullColor, linewidth=thicknesSwitch, transp=50)
+Fi2 = plot(visualSwitch ? SHULL : na, title="SHULL", color=hullColor, linewidth=thicknesSwitch, transp=50)
+alertcondition(crossover(MHULL, SHULL), title="Hull trending up.", message="Hull trending up.")
+alertcondition(crossover(SHULL, MHULL), title="Hull trending down.", message="Hull trending down.")
+///< Ending Filler
+fill(Fi1, Fi2, title="Band Filler", color=hullColor, transp=transpSwitch)
+///BARCOLOR
+barcolor(color = candleCol ? (switchColor ? hullColor : na) : na)
