@@ -1,0 +1,45 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SenatorVonShaft
+
+//@version=5
+indicator("Bull & Bear Engulfing - 3 Strike and 180 Candles X EMA" , overlay = true)
+
+candlperc = input.float(title="Bar Fullness Percentage",minval=50.00, maxval=100, step=0.1, defval=80) * 0.01
+AvgBarBack = input.int(title = "Average Bar Backwds Candles", minval=1, step=1, defval=20)
+avgcandlmult = input.float(title="Average Bar Height Multiptier", minval=0.1, maxval=20, step=0.1, defval=1.5)
+
+ortBar = ta.sma(math.abs(close - open) , AvgBarBack)
+ortBarCond = math.abs(close - open) > avgcandlmult * ortBar
+BiggerBar = math.abs (close - open) > math.abs (close [1] - open [1])
+BullBar = close > open and hl2 > open and ((close - open) / (high - low)) >= candlperc and BiggerBar and ortBarCond
+BearBar = close < open and hl2 < open and ((open - close) / (high - low)) >= candlperc and BiggerBar and ortBarCond
+Bull3 = BullBar and close[1] < open [1] and close[2] < open [2] and close[3] < open [3] and close > open [3]
+Bear3 = BearBar and close[1] > open [1] and close[2] > open [2] and close[3] > open [3] and close < open [3]
+Bull180 = BearBar[1] and close > open and math.abs(open - close) > math.abs(open[1] - close [1])
+Bear180 = BullBar[1] and close < open and math.abs(open - close) > math.abs(open[1] - close [1])
+
+plotshape(BullBar,  style=shape.labelup , location= location.belowbar, color = color.rgb(76, 175, 79, 10))
+plotshape(BearBar,  style=shape.labeldown, location=location.abovebar , color = color.rgb(255, 82, 82, 10))
+plotshape(Bull3,  style=shape.labelup , location=location.belowbar, color = color.rgb(76, 175, 79, 10), text = "3S" , textcolor = color.white )
+plotshape(Bear3,  style=shape.labeldown , location=location.abovebar , color = color.rgb(255, 82, 82, 10) , text = "3S" , textcolor = color.white  )
+plotshape(Bull180,  style=shape.labelup , location=location.belowbar, color = color.rgb(76, 175, 79, 10) , text = "180" , textcolor = color.white  )
+plotshape(Bear180,  style=shape.labeldown , location=location.abovebar , color = color.rgb(255, 82, 82, 10) , text = "180" , textcolor = color.white  )
+plot (ortBar , color = color.white)
+
+len1 = input.int(9, minval=1, title="Length1")
+src1 = input(close, title="Source1")
+offset1 = input.int(title="Offset1", defval=0, minval=-500, maxval=500)
+out1 = ta.ema(src1, len1)
+plot(out1, title="EMA1", color=color.blue, offset=offset1)
+
+len2 = input.int(20, minval=1, title="Length2")
+src2 = input(close, title="Source2")
+offset2 = input.int(title="Offset2", defval=0, minval=-500, maxval=500)
+out2 = ta.ema(src2, len2)
+plot(out2, title="EMA2", color=color.rgb(243, 33, 233), offset=offset2)
+
+len3 = input.int(50, minval=1, title="Length3")
+src3 = input(close, title="Source3")
+offset3 = input.int(title="Offset3", defval=0, minval=-500, maxval=500)
+out3 = ta.ema(src3, len3)
+plot(out3, title="EMA3", color=color.rgb(243, 75, 33), offset=offset3)
